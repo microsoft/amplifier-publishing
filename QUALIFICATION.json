@@ -8,17 +8,18 @@
   ],
   "consumer": "Separate Python 3.13.11 environment; imports resolve to installed site-packages; no amplifier_web, amplifier_core or amplifier_foundation installed.",
   "tests": {
-    "collected": 171,
-    "passed": 171,
+    "collected": 173,
+    "passed": 173,
     "skipped": 0,
-    "execution": "Combined installed-consumer run: 343 passed, one extracted worktree test failed for missing test-only os import. After restoring that import, all five worktree tests passed; 344 unique cases qualified across four libraries."
+    "execution": "173 standalone library tests plus six Unified owner tests passed in separate installed-wheel consumer: 179 passed. Actual Unix socket transport fixtures; no real SSH account."
   },
   "artifact": {
     "name": "amplifier_publishing-0.1.0-py3-none-any.whl",
-    "sha256": "62cdc14a597ccb4b4fed06cd333bf17f87eee160874af4c1215ae4cb13d395e9"
+    "sha256": "db8b13bd3619811dfc8610239dffb6420a92f24291394036884e0257764c780d"
   },
   "limits": [
     "Extracted public library cases only; application integration cases remain separate.",
     "No host deployment, native-runtime integration or real-account acceptance established."
-  ]
+  ],
+  "amendment": "Indexed bounded pages and exact receipt/release reads, active-only recovery, scoped mutation lookups, negotiated remote pagination"
 }

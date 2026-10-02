@@ -151,3 +151,24 @@ silently assigned a success outcome. The host controls retention and disk quota.
 ## Standalone qualification
 
 Build with `uv build`. Install the wheel in a separate environment and run `python -m pytest tests`. Tests must not import Unified implementation or native runtime packages. `PROVENANCE.json` records extraction sources. The distribution owns host integration and real-account acceptance.
+
+## Bounded selected reads
+
+`Publisher.page(session_id, collection="sites"|"releases"|"receipts", limit=25,
+cursor=None, site_id=None)` returns `{items,nextCursor,collection}`. Limit is 1..100.
+Pages use lexical stable IDs with a query-bound keyset cursor; inserts and updates
+do not cause offset drift. This is identifier order, not chronological order.
+Session/site expression indexes prevent historical-global scans. Liveness and
+restart recovery read only indexed running records. Full-list methods remain
+compatible for callers that deliberately request a complete export.
+
+Metadata pages replace release `files` with `fileCount`, including release results
+inside receipts. `Publisher.release(release_id,session_id)` and
+`Publisher.receipt(request_id,session_id)` retrieve one full selected record.
+Service discovery advertises `pagination:{version:1,maxLimit:100,order:"identifier"}`.
+Private remote methods `page` and `release` require the pinned service identity;
+SSHClient verifies negotiation, page bounds, scope and URL policies. Old services
+explicitly refuse bounded browsing; there is no silent full-list fallback. Service
+receipt pages merge at most three bounded indexed source windows, preferring the
+exact RPC admission receipt over import/library receipts. Direct receipt lookup
+is indexed and does not enumerate history.
