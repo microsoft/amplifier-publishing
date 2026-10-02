@@ -1,0 +1,15 @@
+{
+  "sourceRepository": "https://github.com/microsoft/amplifier-unified",
+  "sourceRevision": "95e96851b799b2e63c44344d69457ca044572c45",
+  "files": {
+    "amplifier_publishing/service.py": "5dfcc0ebd3a40989afb37ca679b98420ec7a684fd8d89844e45e462c42a53c5d",
+    "amplifier_publishing/remote.py": "24c73397b5538097aa8cae3bf5f03a29d6979a003cc50633ac7bf34bc937cfa7",
+    "amplifier_publishing/__init__.py": "e2a113bd99e5d025a6ac5ca81769104c24057843d45429e249f1595dc8b15fe7",
+    "amplifier_publishing/README.md": "f8ca1ea35ee3ce0122f45ae118753fe64e9ab684f4d68bd11233624946052b9e",
+    "amplifier_publishing/publisher.py": "d2ecaa89979f8ee23455cbe578a00c695c81b7115fd7a8d2d751663c41f533e9",
+    "tests/test_publishing_library.py": "c7d18fb09c335c2a09f0bd5d11b8bd988647ed992239e706055d81cbf31cdd00",
+    "tests/test_publishing_remote.py": "cf839caa5c0738df4f2e03827ef825a5e0bb333f3c5157b85c9e2c760665f2b7"
+  },
+  "testSelection": "complete standalone files",
+  "boundary": "Extracted library; application integration cases remain in distribution acceptance, not replaced with skips."
+}

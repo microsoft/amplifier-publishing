@@ -1,0 +1,24 @@
+{
+  "date": "2026-10-02",
+  "distribution": "amplifier-publishing",
+  "sourceRevision": "95e96851b799b2e63c44344d69457ca044572c45",
+  "built": [
+    "wheel",
+    "sdist"
+  ],
+  "consumer": "Separate Python 3.13.11 environment; imports resolve to installed site-packages; no amplifier_web, amplifier_core or amplifier_foundation installed.",
+  "tests": {
+    "collected": 171,
+    "passed": 171,
+    "skipped": 0,
+    "execution": "Combined installed-consumer run: 343 passed, one extracted worktree test failed for missing test-only os import. After restoring that import, all five worktree tests passed; 344 unique cases qualified across four libraries."
+  },
+  "artifact": {
+    "name": "amplifier_publishing-0.1.0-py3-none-any.whl",
+    "sha256": "62cdc14a597ccb4b4fed06cd333bf17f87eee160874af4c1215ae4cb13d395e9"
+  },
+  "limits": [
+    "Extracted public library cases only; application integration cases remain separate.",
+    "No host deployment, native-runtime integration or real-account acceptance established."
+  ]
+}

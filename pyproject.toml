@@ -1,0 +1,24 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "amplifier-publishing"
+version = "0.1.0"
+description = "Reusable Amplifier publishing library"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+dependencies = []
+
+[project.urls]
+Repository = "https://github.com/microsoft/amplifier-publishing"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/amplifier_publishing"]
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
