@@ -310,6 +310,14 @@ class Publisher:
     def _all(self, kind):
         return [json.loads(row[0]) for row in self._db.execute("SELECT body FROM records WHERE kind=? ORDER BY rowid", (kind,))]
 
+    def _session_records(self, kind, session_id):
+        # Preserve legacy export order while filtering through records_scope
+        # before decoding. Other sessions never become this caller's working set.
+        return [json.loads(row[0]) for row in self._db.execute(
+            "SELECT body FROM records WHERE kind=? AND json_extract(body,'$.sessionId')=? ORDER BY rowid",
+            (kind, session_id),
+        )]
+
     def _save_receipt(self, receipt, fingerprint):
         self._db.execute("INSERT OR REPLACE INTO receipts VALUES (?,?,?,?)", (receipt["sessionId"], receipt["requestId"], fingerprint, _json(receipt)))
 
@@ -798,7 +806,7 @@ class Publisher:
         with self._mutex:
             self._check_open()
             self._refresh_liveness()
-            return [site for site in self._all("site") if site["sessionId"] == session_id]
+            return self._session_records("site", session_id)
 
     def status(self, site_id, session_id):
         with self._mutex:
@@ -810,7 +818,7 @@ class Publisher:
         with self._mutex:
             self._check_open()
             self._refresh_liveness()
-            return [self._project_release(release) for release in self._all("release") if release["sessionId"] == session_id]
+            return [self._project_release(release) for release in self._session_records("release", session_id)]
 
     def receipts(self, session_id):
         with self._mutex:

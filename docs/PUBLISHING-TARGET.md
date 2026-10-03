@@ -6,9 +6,10 @@ rollback, stop/remove, content verification and durable operation receipts.
 The `amplifier_publishing.remote.SSHClient` library sends one request at a time
 to that service over an existing SSH connection configuration.
 
-The app integrates this target through the shared controls documented in
-[Managed static publishing](PUBLISHING.md). Local Unix-socket, HTTP, app adapter
-and controlled-transport acceptance is covered by the publishing tests. Host
+Consumers integrate this target through the public API documented in
+[Managed static publishing](../README.md). Local Unix-socket, HTTP,
+and controlled-transport acceptance is covered by this repository's tests. App adapter
+acceptance belongs to the consuming application. Host
 installation, client reachability, private network, firewall, reverse proxy,
 TLS and production acceptance remain separate deployment responsibilities.
 A configured target is explicitly inspected and selected by its consuming
@@ -101,6 +102,8 @@ the service at a socket may change between preflight and the actual request.
 | `list`, `releases`, `receipts` | `sessionId` |
 | `status` | `sessionId`, `siteId` |
 | `receipt` | `sessionId`, `requestId` |
+| `page` | `sessionId`, `collection`; optional `limit`, `cursor`, `siteId` |
+| `release` | `sessionId`, `releaseId` |
 | `import` | `sessionId`, `requestId`, `siteId`, `manifest`, `manifestDigest`, `files` |
 | `preview` | `sessionId`, `requestId`, `releaseId` |
 | `review` | `sessionId`, `requestId`, `releaseId`, `note` |

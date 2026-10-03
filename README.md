@@ -153,6 +153,12 @@ silently assigned a success outcome. The host controls retention and disk quota.
 
 Build with `uv build`. Install the wheel in a separate environment and run `python -m pytest tests`. Tests must not import Unified implementation or native runtime packages. `PROVENANCE.json` records extraction sources. The distribution owns host integration and real-account acceptance.
 
+`scripts/qualify-installed.sh /absolute/evidence-directory` builds wheel/sdist,
+installs the wheel into a disposable environment, verifies its import origin,
+and runs copied contract tests with Python isolated mode. It saves package
+identity/digest and JUnit results. It requires `uv` and dependency index access;
+no sibling checkout, native runtime or remote account is used.
+
 ## Bounded selected reads
 
 `Publisher.page(session_id, collection="sites"|"releases"|"receipts", limit=25,
@@ -173,3 +179,47 @@ explicitly refuse bounded browsing; there is no silent full-list fallback. Servi
 receipt pages merge at most three bounded indexed source windows, preferring the
 exact RPC admission receipt over import/library receipts. Direct receipt lookup
 is indexed and does not enumerate history.
+
+## Passive reads, retained references and legacy evidence
+
+Full `list` and `releases` exports filter by session through the existing index
+before loading records, retaining their original insertion order. They still
+return the entire selected session; interactive consumers should use `page`.
+There is no automatic full-export fallback for a transport without pagination.
+
+`receipt` and `inspect_lifetime` do not repair state or start listeners.
+`status`, `release`, `page`, `list` and `releases` check the indexed live listener
+set and may persist an interrupted state, clear its URL and advance its revision
+when a process-owned listener has died. Healthy reads leave records unchanged.
+Treat that liveness reconciliation as owner-local bookkeeping when classifying
+maintenance reads; callers must retain the actual owner and intake fence.
+`inspect_lifetime` reports local listeners only, not remote publication lifetime,
+in-flight RPCs, queued operations or service ownership. The separately managed
+service remains its supervisor's responsibility even with zero site listeners.
+
+A release ID, manifest digest and session/site identity are durable library
+references. `stop` and `remove` retain immutable content, reviews and operation
+receipts; neither is garbage collection. A workspace disappearing or a source
+artifact changing does not invalidate the saved snapshot or authorize deleting
+it. Workspace paths, artifact IDs, access decisions and cleanup dependency maps
+belong to the consumer, which should retain them alongside those library
+references. No source directory or product history is rewritten by publication.
+
+Opening preserved legacy Publisher/service stores retains their identity,
+immutable snapshots, reviews and receipts. Recovery never restarts historical
+listeners or replays unknown effects. Reading a legacy receipt does not manufacture
+transport proof. An exact legacy retry must prove its original arguments before
+RPC proof can be attached; unknown retries remain unknown. Importing release bytes
+with `export_release` / service `import` creates a snapshot on the explicitly
+selected service; review and deployment remain separate operations. It does not
+import an old service identity, deployment result, workspace mapping or review.
+
+Arbitrary legacy product records are evidence for the consuming application's
+reviewed migration, not inputs to an undocumented library mutation. Keep source
+records and source hashes, original service/release/request identities, external
+references and unresolved outcomes. Resolve a lost response only against the
+saved `serviceId` and exact `rpcPayloadDigest`; a matching request ID or current
+site alone cannot prove the original operation. If proof is missing or changed,
+retain uncertainty and offer inspection rather than automatic retry or new-ID
+publication. Account-backed SSH/provider, browser, TLS, firewall and remote service
+supervisor acceptance remain separate from installed local fixture tests.
