@@ -1,8 +1,12 @@
 # Managed static publishing
 
+Start with the [local vision](docs/VISION.md) and [publishing contract v1](contracts/publishing.v1.md)
+for purpose, ownership, promises, consumer obligations and acceptance limits.
+
 `amplifier_publishing` is a standard-library-only component for immutable static
-release snapshots and explicit managed listener operations. It knows nothing
-about an application, model, workspace, build system, or remote transport. The
+release snapshots and explicit managed listener operations. Its core Publisher
+knows nothing about an application, model, workspace or build system. The library
+also provides an explicitly selected private service and SSH transport. The
 caller must first build its site using its existing builder, authorize the source
 directory, and scope each call to the authenticated owning session.
 
