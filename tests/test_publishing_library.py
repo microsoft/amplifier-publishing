@@ -558,3 +558,19 @@ def test_export_checks_bytes_again_if_store_changes_after_initial_verification(p
     with pytest.raises(PublishingError) as error:
         publisher.export_release(release["id"], "session-one")
     assert error.value.code == "integrity_error"
+
+
+def test_lifetime_counts_live_listeners_without_historical_scans(publisher, source):
+    release = build(publisher, source)
+    assert publisher.inspect_lifetime() == {"sites": 0, "previews": 0, "listeners": 0}
+    publisher.preview(release["id"], session_id="session-one", request_id="preview-life")
+    review(publisher, release)
+    deploy(publisher, release)
+    statements=[]
+    publisher._db.set_trace_callback(statements.append)
+    assert publisher.inspect_lifetime() == {"sites": 1, "previews": 1, "listeners": 2}
+    assert statements == []
+    publisher._db.set_trace_callback(None)
+    publisher.stop("site-one", session_id="session-one", expected_revision=1, request_id="stop-life")
+    assert publisher.inspect_lifetime()["listeners"] == 0
+    assert publisher.release(release["id"], "session-one")["files"]

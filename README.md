@@ -64,6 +64,7 @@ publisher.close()
   historical listeners; callers own backup access, encryption, and retention.
 - `capabilities` reports `bindHost`, `accessPolicy`, `authentication`,
   `previewAccessPolicy`, and `publicPublishing`.
+- `inspect_lifetime()` returns process-owned `{sites,previews,listeners}` counts without scanning or updating stored history. The caller must fence new operations separately. An idle HTTP listener is still a live responsibility; historical releases and remote publications are not local listeners.
 - `close()` closes owned listeners and storage and marks running records stopped.
   A context manager is supported.
 

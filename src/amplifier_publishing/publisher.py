@@ -284,6 +284,18 @@ class Publisher:
     def capabilities(self):
         return {"bindHost": self._bind_host, "accessPolicy": self._access_policy, "authentication": "none", "previewAccessPolicy": "loopback-only", "publicPublishing": False}
 
+    def inspect_lifetime(self):
+        """Read process-owned listener counts without touching stored history.
+
+        Callers must separately fence new operations before treating this as an
+        idle observation. Existing listeners are live responsibilities even when
+        no HTTP request is currently active. No URLs or session IDs are exposed.
+        """
+        with self._mutex:
+            self._check_open()
+            return {"sites": len(self._sites), "previews": len(self._previews),
+                    "listeners": len(self._sites) + len(self._previews)}
+
     def _check_open(self):
         if self._closed:
             raise PublishingError("closed", "Publisher is closed")
