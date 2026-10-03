@@ -55,3 +55,130 @@ def test_real_socket_pages_and_client_negotiation():
             actual=client.verify_target
             client.verify_target=lambda:{**actual(),'pagination':{}}
             with pytest.raises(PublishingError,match='bounded pages'):client.request({'method':'page','sessionId':'one','collection':'sites'})
+
+
+def test_large_cold_history_does_not_enter_selected_reads(tmp_path):
+    """SQLite work and decoding stay bounded with 25,000 unrelated records."""
+    import json
+
+    source = tmp_path / 'source'
+    source.mkdir()
+    (source / 'index.html').write_text('retained source')
+    with Publisher(tmp_path / 'store') as publisher:
+        first = publisher.build(source, site_id='z-site', session_id='selected', request_id='z-build')
+        (source / 'index.html').write_text('second retained source')
+        second = publisher.build(source, site_id='a-site', session_id='selected', request_id='a-build')
+        publisher.stop('z-site', session_id='selected', expected_revision=0, request_id='z-stop')
+        publisher.remove('a-site', session_id='selected', expected_revision=0, request_id='a-remove')
+        # Disposable fixture records are historical metadata; no listeners or
+        # artifacts are needed for the unrelated authority's catalog.
+        publisher._db.executemany('INSERT INTO records VALUES (?,?,?)', [
+            (kind, f'cold-{i:05}', json.dumps({'id': f'cold-{i:05}', 'siteId': f'cold-{i:05}',
+                                            'sessionId': 'unrelated', 'status': 'stopped'}))
+            for i in range(12500) for kind in ('site', 'release')
+        ])
+        publisher._all = lambda *_: (_ for _ in ()).throw(AssertionError('global history export'))
+        steps = 0
+
+        def bounded_work():
+            nonlocal steps
+            steps += 100
+            return int(steps > 10000)
+
+        publisher._db.set_progress_handler(bounded_work, 100)
+        try:
+            assert [site['id'] for site in publisher.list('selected')] == ['z-site', 'a-site']
+            assert [release['id'] for release in publisher.releases('selected')] == [first['id'], second['id']]
+            assert publisher.page('selected', collection='releases', limit=1)['nextCursor']
+            assert publisher.release(first['id'], 'selected')['files']
+            assert publisher.receipt('z-build', 'selected')['result']['id'] == first['id']
+            assert publisher.inspect_lifetime() == {'sites': 0, 'previews': 0, 'listeners': 0}
+        finally:
+            publisher._db.set_progress_handler(None, 0)
+        assert steps <= 10000
+        assert (source / 'index.html').read_text() == 'second retained source'
+        assert publisher.export_release(first['id'], 'selected')['files']['index.html']
+        assert publisher.status('a-site', 'selected')['status'] == 'removed'
+
+
+def test_selected_reads_retain_bytes_and_revision_when_listeners_are_healthy(tmp_path):
+    """Passive reads do not alter immutable bytes, receipts or a healthy site."""
+    source = tmp_path / 'source'
+    source.mkdir()
+    (source / 'index.html').write_text('retained artifact')
+    with Publisher(tmp_path / 'store') as publisher:
+        release = publisher.build(source, site_id='site', session_id='session', request_id='build')
+        publisher.review(release['id'], session_id='session', request_id='review', note='fixture review')
+        deployed = publisher.deploy(release['id'], site_id='site', session_id='session', expected_revision=0, request_id='deploy')
+        before = publisher._db.total_changes
+        receipts = publisher.receipts('session')
+        exported = publisher.export_release(release['id'], 'session')
+        for collection in ('sites', 'releases', 'receipts'):
+            publisher.page('session', collection=collection)
+        publisher.list('session')
+        publisher.releases('session')
+        publisher.release(release['id'], 'session')
+        publisher.receipt('deploy', 'session')
+        assert publisher.status('site', 'session') == deployed['result']
+        assert publisher.inspect_lifetime() == {'sites': 1, 'previews': 0, 'listeners': 1}
+        assert publisher._db.total_changes == before
+        assert publisher.receipts('session') == receipts
+        assert publisher.export_release(release['id'], 'session') == exported
+        assert (source / 'index.html').read_text() == 'retained artifact'
+
+
+def test_large_service_receipt_history_stays_bounded_and_prefers_rpc():
+    import json
+    from amplifier_publishing.remote import digest
+
+    with tempfile.TemporaryDirectory(dir='/tmp', prefix='pscale-') as directory:
+        base = Path(directory).resolve()
+        with PublishingService(base / 'store', base / 'socket' / 'admin.sock') as service:
+            def receipt(request_id, site):
+                return {'id': digest(['session', request_id]), 'sessionId': 'session',
+                        'requestId': request_id, 'siteId': site, 'action': 'deploy',
+                        'state': 'unknown', 'result': None, 'error': None}
+
+            cold = [(f'cold-{i:05}', json.dumps(receipt(f'cold-{i:05}', 'other-site'))) for i in range(8334)]
+            service.publisher._db.executemany('INSERT INTO receipts VALUES (?,?,?,?)',
+                [('session', rid, 'fixture', body) for rid, body in cold])
+            for table, proof in (('imports', 'fingerprint'), ('rpc_receipts', 'payload_digest')):
+                service._db.executemany(f'INSERT INTO {table} (session,request,{proof},body) VALUES (?,?,?,?)',
+                    [('session', rid, 'fixture', body) for rid, body in cold])
+            for i in range(9):
+                rid = f'selected-{i}'
+                native = receipt(rid, 'selected-site')
+                service.publisher._save_receipt(native, 'fixture')
+                service._save(native, 'fixture')
+                service._save_rpc({**native, 'serviceId': service.service_id, 'rpcPayloadDigest': digest(rid)})
+            steps = 0
+
+            def bounded_work():
+                nonlocal steps
+                steps += 100
+                return int(steps > 10000)
+
+            for db in (service._db, service.publisher._db):
+                db.set_progress_handler(bounded_work, 100)
+            try:
+                rows = []
+                cursor = None
+                while True:
+                    request = {'method': 'page', 'expectedServiceId': service.service_id,
+                               'sessionId': 'session', 'collection': 'receipts',
+                               'siteId': 'selected-site', 'limit': 4}
+                    if cursor:
+                        request['cursor'] = cursor
+                    response = unix_request(service.socket_path, request)
+                    rows.extend(response['items'])
+                    cursor = response['nextCursor']
+                    if not cursor:
+                        break
+                assert [row['requestId'] for row in rows] == [f'selected-{i}' for i in range(9)]
+                assert all(row['rpcPayloadDigest'] and row['serviceId'] == service.service_id for row in rows)
+                assert service._receipt('session', 'selected-0') == rows[0]
+                assert service.publisher.inspect_lifetime()['listeners'] == 0
+            finally:
+                for db in (service._db, service.publisher._db):
+                    db.set_progress_handler(None, 0)
+            assert steps <= 10000

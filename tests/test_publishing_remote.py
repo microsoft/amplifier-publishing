@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import shlex
 import signal
+import socket
 import stat
 import subprocess
 import sys
@@ -836,3 +837,31 @@ def test_retained_private_policy_exception_never_applies_to_previews(private_cli
     with pytest.raises(PublishingError) as rejected:
         private_client.validate_result('receipt', receipt)
     assert rejected.value.code == 'target_mismatch'
+
+
+def test_service_owner_exclusion_and_replaced_socket_are_preserved(paths):
+    """A second endpoint cannot recover a live store or unlink a new endpoint."""
+    root, sock = paths
+    service = PublishingService(root, sock)
+    replacement = None
+    try:
+        service.start()
+        before = service.publisher._db.total_changes
+        with pytest.raises(PublishingError) as error:
+            PublishingService(root, sock.parent / 'second.sock')
+        assert error.value.code == 'root_busy'
+        assert service.publisher._db.total_changes == before
+        identity = unix_request(sock, {'method': 'target'})['serviceId']
+        sock.unlink()
+        replacement = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        replacement.bind(str(sock))
+        inode = sock.stat().st_ino
+        service.close()
+        assert sock.stat().st_ino == inode
+        assert service.service_id == identity
+    finally:
+        service.close()
+        if replacement:
+            replacement.close()
+        if sock.exists():
+            sock.unlink()
