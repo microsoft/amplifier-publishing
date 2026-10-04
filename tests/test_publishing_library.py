@@ -574,3 +574,99 @@ def test_lifetime_counts_live_listeners_without_historical_scans(publisher, sour
     publisher.stop("site-one", session_id="session-one", expected_revision=1, request_id="stop-life")
     assert publisher.inspect_lifetime()["listeners"] == 0
     assert publisher.release(release["id"], "session-one")["files"]
+
+# Startup fixtures use inert callbacks only; no listener or publication is started.
+@pytest.mark.parametrize("table", ["records", "receipts"])
+def test_startup_refuses_missing_publisher_authority(tmp_path, table):
+    import sqlite3
+    root = tmp_path / "authority"
+    effects = []
+    def uncertain(_receipt):
+        effects.append("inert")
+        raise RuntimeError("lost result")
+    owner = Publisher(root)
+    with pytest.raises(PublishingError) as original:
+        owner._operation("build", "session", "original", {"siteId": "site"}, uncertain)
+    assert original.value.code == "unknown_outcome"
+    owner._put("release", {"id": "original-release", "sessionId": "session", "siteId": "site"})
+    owner.close()
+    owner = Publisher(root)
+    assert owner._get("release", "original-release")["sessionId"] == "session"
+    with pytest.raises(PublishingError):
+        owner._operation("build", "session", "original", {"siteId": "site"}, uncertain)
+    assert effects == ["inert"]
+    owner.close()
+    path = root / "state.sqlite3"
+    with sqlite3.connect(path) as db:
+        db.execute(f"DROP TABLE {table}")
+    before = path.read_bytes()
+    for _ in range(2):
+        with pytest.raises(PublishingError) as refused:
+            Publisher(root)
+        assert refused.value.code == "ledger_unconfirmed"
+        assert path.read_bytes() == before
+    assert effects == ["inert"]
+    # Failed construction releases the original lease; no second owner is stuck.
+    import fcntl
+    with (root / "owner.lock").open("a+b") as lock:
+        fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+
+@pytest.mark.parametrize("suffix", ["-wal", "-shm", "-journal"])
+@pytest.mark.parametrize("dangling", [False, True])
+def test_startup_refuses_orphan_publisher_journal(tmp_path, suffix, dangling):
+    root = tmp_path / "orphan"
+    root.mkdir()
+    path = root / "state.sqlite3"
+    journal = Path(str(path) + suffix)
+    if dangling:
+        journal.symlink_to(root / "absent")
+    else:
+        journal.touch()
+    with pytest.raises(PublishingError) as refused:
+        Publisher(root)
+    assert refused.value.code == "ledger_unconfirmed"
+    assert not path.exists()
+    assert journal.is_symlink() if dangling else journal.is_file()
+
+
+@pytest.mark.parametrize("missing_main", [False, True])
+def test_startup_preserves_actual_publisher_crash_wal(tmp_path, missing_main):
+    root = tmp_path / "crash"
+    Publisher(root).close()
+    script = """
+import os, signal, sqlite3, sys
+from pathlib import Path
+root=Path(sys.argv[1]); path=root/'state.sqlite3'
+db=sqlite3.connect(path, isolation_level=None)
+db.execute('PRAGMA journal_mode=WAL'); db.execute('PRAGMA wal_autocheckpoint=0')
+db.execute('DROP TABLE receipts')
+if sys.argv[2]=='True': path.rename(root/'retained-main')
+os.kill(os.getpid(), signal.SIGKILL)
+"""
+    result = subprocess.run([sys.executable, "-c", script, str(root), str(missing_main)])
+    assert result.returncode < 0
+    main = root / "state.sqlite3"
+    wal = Path(str(main) + "-wal")
+    assert wal.stat().st_size > 0
+    before = wal.read_bytes()
+    main_before = main.read_bytes() if main.exists() else None
+    for _ in range(2):
+        with pytest.raises(PublishingError):
+            Publisher(root)
+        assert wal.read_bytes() == before
+        assert (main.read_bytes() if main.exists() else None) == main_before
+
+
+def test_startup_original_publisher_profile_needs_no_current_json_proof(tmp_path):
+    import sqlite3
+    root = tmp_path / "historical"
+    root.mkdir()
+    with sqlite3.connect(root / "state.sqlite3") as db:
+        db.execute("CREATE TABLE records (kind TEXT,id TEXT,body TEXT NOT NULL,PRIMARY KEY(kind,id))")
+        db.execute("CREATE TABLE receipts (session TEXT,request TEXT,fingerprint TEXT NOT NULL,body TEXT NOT NULL,PRIMARY KEY(session,request))")
+        old = {"id": "original", "sessionId": "session", "requestId": "original", "action": "build", "state": "unknown", "error": {"code": "unknown_outcome", "message": "retained"}}
+        db.execute("INSERT INTO receipts VALUES (?,?,?,?)", ("session", "original", "original-fingerprint", json.dumps(old)))
+    with Publisher(root) as owner:
+        assert owner.receipt("original", "session") == old
+        assert "rpcPayloadDigest" not in owner.receipt("original", "session")

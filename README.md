@@ -227,3 +227,31 @@ site alone cannot prove the original operation. If proof is missing or changed,
 retain uncertainty and offer inspection rather than automatic retry or new-ID
 publication. Account-backed SSH/provider, browser, TLS, firewall and remote service
 supervisor acceptance remain separate from installed local fixture tests.
+
+## Authoritative startup checks
+
+The Publisher `records`/`receipts` tables and the sibling service
+`imports`/`rpc_receipts`/`identity` tables are complete authority profiles dating
+to the original standalone extraction. Existing stores must retain their full
+profile and the service's original `identity` singleton. Startup refuses with
+`ledger_unconfirmed` rather than recreating missing authority or generating a
+replacement service UUID. Historical receipt JSON remains compatible; a missing
+newer RPC proof field does not make an otherwise supported profile invalid.
+
+Under the existing Publisher ownership lease, a bounded read-only SQLite probe
+checks both service and Publisher schema before either writable open. The probe
+observes committed WAL and reads only fixed schema metadata and the bounded
+service identity singleton. Initialization revalidates inside a writer
+transaction before DDL. Existing indexed running-to-unknown recovery remains
+unchanged; no history scan, mirror, evidence reconstruction or operation replay
+is added by this guard.
+
+A new ledger requires its main file and all `-wal`, `-shm`, and `-journal` paths
+to be absent. Even empty journals, dangling links, and special files refuse
+bootstrap. Repeated refusal preserves main and committed WAL evidence; SQLite
+may change derived SHM reader bookkeeping. If the main file and every journal
+and external origin record disappear, that state cannot be distinguished from
+genuinely new storage. This guard does not promise detection of arbitrary row
+loss, complete valid-store replacement, or whole-store deletion. Keep retained
+backups and original identities for inspection; absence does not authorize
+replaying a publication.
