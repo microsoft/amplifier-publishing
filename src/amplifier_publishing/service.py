@@ -24,7 +24,7 @@ import sys
 import threading
 import uuid
 
-from .publisher import Publisher, PublishingError
+from .publisher import Publisher, PublishingError, _ledger_fresh, _validate_ledger
 from .remote import MAX_MESSAGE_BYTES, MUTATIONS, canonical, decode_message, digest, encode_message, private_bind, service_identity, timeout_value, unix_request
 
 MAX_FILES = 2000
@@ -121,6 +121,18 @@ def _manifest(request):
     return decoded
 
 
+class _ServicePublisher(Publisher):
+    """Probe both authorities while the existing Publisher flock is held."""
+
+    def __init__(self, root, service_ledger, **options):
+        self._service_ledger = service_ledger
+        super().__init__(root, **options)
+
+    def _preflight_storage(self):
+        self._service_fresh = _ledger_fresh(self._service_ledger, "service")
+        return super()._preflight_storage()
+
+
 class PublishingService:
     """One owner, durable import receipts, immutable releases and local control."""
 
@@ -136,23 +148,28 @@ class PublishingService:
         if self.socket_path == root or self.socket_path.is_relative_to(root):
             raise PublishingError("unsafe_root", "Admin socket must be outside the publisher store")
         self.staging = _private_directory(self.state_root / "transfers")
-        self.publisher = Publisher(root, bind_host=self.bind)
+        self.publisher = _ServicePublisher(root, self.state_root / "imports.sqlite3", bind_host=self.bind)
         self._mutex = threading.RLock()
         self._thread = None
         self._server = None
         self._closed = False
         try:
             self._db = sqlite3.connect(self.state_root / "imports.sqlite3", check_same_thread=False, isolation_level=None)
-            self._db.execute("PRAGMA journal_mode=WAL")
+            if self.publisher._service_fresh:
+                self._db.execute("PRAGMA journal_mode=WAL")
             self._db.execute("PRAGMA synchronous=FULL")
+            self._db.execute("BEGIN IMMEDIATE")
+            _validate_ledger(self._db, "service", fresh=self.publisher._service_fresh)
             self._db.execute("CREATE TABLE IF NOT EXISTS imports (session TEXT, request TEXT, fingerprint TEXT NOT NULL, body TEXT NOT NULL, PRIMARY KEY(session,request))")
             self._db.execute("CREATE TABLE IF NOT EXISTS rpc_receipts (session TEXT, request TEXT, payload_digest TEXT NOT NULL, body TEXT NOT NULL, PRIMARY KEY(session,request))")
             self._db.execute("CREATE TABLE IF NOT EXISTS identity (singleton INTEGER PRIMARY KEY CHECK(singleton=1), service_id TEXT NOT NULL)")
-            self._db.execute("INSERT OR IGNORE INTO identity VALUES (1, ?)", (str(uuid.uuid4()),))
+            if self.publisher._service_fresh:
+                self._db.execute("INSERT INTO identity VALUES (1, ?)", (str(uuid.uuid4()),))
             self.service_id = service_identity(self._db.execute("SELECT service_id FROM identity WHERE singleton=1").fetchone()[0])
             for table in ("imports", "rpc_receipts"):
                 self._db.execute(f"CREATE INDEX IF NOT EXISTS {table}_state ON {table}(json_extract(body,'$.state'))")
                 self._db.execute(f"CREATE INDEX IF NOT EXISTS {table}_site ON {table}(session,json_extract(body,'$.siteId'),request)")
+            self._db.execute("COMMIT")
             self._recover()
             self._server = _AdminServer(str(self.socket_path), self)
             self.socket_path.chmod(0o600)

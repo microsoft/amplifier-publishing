@@ -99,6 +99,67 @@ def _read_file(root, path, expected_size):
         os.close(fd)
 
 
+# Original complete authority profiles; receipt JSON has its own legacy contract.
+_LEDGER_COLUMNS = {
+    "publisher": {"records": [("kind", "TEXT", 0, 1), ("id", "TEXT", 0, 2), ("body", "TEXT", 1, 0)],
+                  "receipts": [("session", "TEXT", 0, 1), ("request", "TEXT", 0, 2), ("fingerprint", "TEXT", 1, 0), ("body", "TEXT", 1, 0)]},
+    "service": {"imports": [("session", "TEXT", 0, 1), ("request", "TEXT", 0, 2), ("fingerprint", "TEXT", 1, 0), ("body", "TEXT", 1, 0)],
+                "rpc_receipts": [("session", "TEXT", 0, 1), ("request", "TEXT", 0, 2), ("payload_digest", "TEXT", 1, 0), ("body", "TEXT", 1, 0)],
+                "identity": [("singleton", "INTEGER", 0, 1), ("service_id", "TEXT", 1, 0)]},
+}
+
+
+def _ledger_unconfirmed():
+    raise PublishingError("ledger_unconfirmed", "Publishing authority is incomplete; retained evidence requires inspection")
+
+
+def _validate_ledger(db, profile, *, fresh=False):
+    expected = _LEDGER_COLUMNS[profile]
+    version = db.execute("PRAGMA user_version").fetchone()[0]
+    names = [row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' LIMIT 4")]
+    if fresh and version == 0 and not names:
+        return
+    if version != 0 or set(names) != set(expected) or len(names) != len(expected):
+        _ledger_unconfirmed()
+    for table, columns in expected.items():
+        actual = [(name, kind.upper(), required, key) for name, kind, required, key in
+                  db.execute('SELECT name,type,"notnull",pk FROM pragma_table_info(?) LIMIT ?', (table, len(columns) + 1))]
+        if actual != columns:
+            _ledger_unconfirmed()
+    if profile == "service":
+        row = db.execute("SELECT CASE WHEN length(CAST(service_id AS BLOB))<=256 THEN service_id END FROM identity WHERE singleton=1").fetchone()
+        if not row or not isinstance(row[0], str) or not re.fullmatch(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}", row[0]):
+            _ledger_unconfirmed()
+        sql = db.execute("SELECT CASE WHEN length(sql)<=8192 THEN sql END FROM sqlite_master WHERE type='table' AND name='identity'").fetchone()[0]
+        if not isinstance(sql, str) or not re.search(r"CHECK\s*\(\s*singleton\s*=\s*1\s*\)", sql, re.I):
+            _ledger_unconfirmed()
+
+
+def _ledger_fresh(path, profile):
+    # lstat counts empty and dangling journal evidence, and rejects special files.
+    entries = []
+    for candidate in (path, *(Path(str(path) + suffix) for suffix in ("-wal", "-shm", "-journal"))):
+        try:
+            info = candidate.lstat()
+        except FileNotFoundError:
+            entries.append(None)
+        else:
+            if not stat.S_ISREG(info.st_mode):
+                _ledger_unconfirmed()
+            entries.append(info)
+    if entries[0] is None:
+        if any(entry is not None for entry in entries[1:]):
+            _ledger_unconfirmed()
+        return True
+    # mode=ro observes committed WAL. immutable mode would hide that authority.
+    db = sqlite3.connect(path.as_uri() + "?mode=ro", uri=True, isolation_level=None)
+    try:
+        _validate_ledger(db, profile)
+    finally:
+        db.close()
+    return False
+
+
 class _Server(ThreadingHTTPServer):
     daemon_threads = True
     block_on_close = False
@@ -258,13 +319,17 @@ class Publisher:
             self._lock_file.close()
             raise PublishingError("root_busy", "Publishing root requires one active owner on a POSIX host") from exc
         try:
+            fresh = self._preflight_storage()
             self._content = self.root / "releases"
             self._content.mkdir(exist_ok=True, mode=0o700)
             self._staging = self.root / "staging"
             self._staging.mkdir(exist_ok=True, mode=0o700)
             self._db = sqlite3.connect(self.root / "state.sqlite3", check_same_thread=False, isolation_level=None)
-            self._db.execute("PRAGMA journal_mode=WAL")
+            if fresh:
+                self._db.execute("PRAGMA journal_mode=WAL")
             self._db.execute("PRAGMA synchronous=FULL")
+            self._db.execute("BEGIN IMMEDIATE")
+            _validate_ledger(self._db, "publisher", fresh=fresh)
             self._db.execute("CREATE TABLE IF NOT EXISTS records (kind TEXT, id TEXT, body TEXT NOT NULL, PRIMARY KEY(kind,id))")
             self._db.execute("CREATE TABLE IF NOT EXISTS receipts (session TEXT, request TEXT, fingerprint TEXT NOT NULL, body TEXT NOT NULL, PRIMARY KEY(session,request))")
             self._db.execute("CREATE INDEX IF NOT EXISTS records_scope ON records(kind,json_extract(body,'$.sessionId'),id)")
@@ -273,12 +338,16 @@ class Publisher:
             self._db.execute("CREATE INDEX IF NOT EXISTS receipts_state ON receipts(json_extract(body,'$.state'))")
             self._db.execute("CREATE INDEX IF NOT EXISTS receipts_site ON receipts(session,json_extract(body,'$.siteId'),request)")
             self._db.execute("CREATE INDEX IF NOT EXISTS records_site_owner ON records(kind,json_extract(body,'$.siteId'),json_extract(body,'$.sessionId'))")
+            self._db.execute("COMMIT")
             self._recover()
         except BaseException:
-            self._lock_file.close()
             if hasattr(self, "_db"):
                 self._db.close()
+            self._lock_file.close()
             raise
+
+    def _preflight_storage(self):
+        return _ledger_fresh(self.root / "state.sqlite3", "publisher")
 
     @property
     def capabilities(self):

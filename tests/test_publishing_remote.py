@@ -865,3 +865,151 @@ def test_service_owner_exclusion_and_replaced_socket_are_preserved(paths):
             replacement.close()
         if sock.exists():
             sock.unlink()
+
+# These startup controls replace the socket constructor with an inert file.
+@pytest.fixture
+def inert_authority_service(tmp_path, monkeypatch):
+    from pathlib import Path
+    from amplifier_publishing import service as module
+    class InertServer:
+        def __init__(self, path, service):
+            Path(path).touch(mode=0o600)
+        def server_close(self):
+            pass
+    monkeypatch.setattr(module, "_AdminServer", InertServer)
+    root = tmp_path / "publisher"
+    socket_dir = tmp_path / "control"
+    socket_dir.mkdir(mode=0o700)
+    sock = socket_dir / "inert"
+    return root, sock
+
+
+@pytest.mark.parametrize("table", ["imports", "rpc_receipts", "identity", "identity-row"])
+def test_startup_refuses_missing_service_authority(inert_authority_service, table):
+    import sqlite3
+    root, sock = inert_authority_service
+    owner = PublishingService(root, sock)
+    identity = owner.service_id
+    request = {"method": "review", "sessionId": "session", "requestId": "original", "siteId": "site", "expectedServiceId": identity}
+    effects = []
+    def uncertain(_request):
+        effects.append("inert")
+        raise RuntimeError("lost result")
+    owner._mutate = uncertain
+    with pytest.raises(PublishingError):
+        owner._rpc_mutation(request)
+    owner.close()
+    owner = PublishingService(root, sock)
+    owner._mutate = uncertain
+    assert owner.service_id == identity
+    with pytest.raises(PublishingError):
+        owner._rpc_mutation(request)
+    assert effects == ["inert"]
+    owner.close()
+    path = root.parent / f".{root.name}-service" / "imports.sqlite3"
+    with sqlite3.connect(path) as db:
+        db.execute("DELETE FROM identity WHERE singleton=1" if table == "identity-row" else f"DROP TABLE {table}")
+    before = path.read_bytes()
+    publisher_before = (root / "state.sqlite3").read_bytes()
+    for _ in range(2):
+        with pytest.raises(PublishingError) as refused:
+            PublishingService(root, sock)
+        assert refused.value.code == "ledger_unconfirmed"
+        assert path.read_bytes() == before
+        assert (root / "state.sqlite3").read_bytes() == publisher_before
+        assert not sock.exists()
+    assert effects == ["inert"]
+
+
+@pytest.mark.parametrize("suffix", ["-wal", "-shm", "-journal"])
+@pytest.mark.parametrize("dangling", [False, True])
+def test_startup_refuses_orphan_service_journal(inert_authority_service, suffix, dangling):
+    from pathlib import Path
+    root, sock = inert_authority_service
+    state = root.parent / f".{root.name}-service"
+    state.mkdir(mode=0o700)
+    path = state / "imports.sqlite3"
+    journal = Path(str(path) + suffix)
+    if dangling:
+        journal.symlink_to(state / "absent")
+    else:
+        journal.touch()
+    with pytest.raises(PublishingError) as refused:
+        PublishingService(root, sock)
+    assert refused.value.code == "ledger_unconfirmed"
+    assert not path.exists() and not (root / "state.sqlite3").exists()
+    assert journal.is_symlink() if dangling else journal.is_file()
+
+
+@pytest.mark.parametrize("missing_main", [False, True])
+def test_startup_preserves_actual_service_crash_wal(inert_authority_service, missing_main):
+    import subprocess
+    import sys
+    from pathlib import Path
+    root, sock = inert_authority_service
+    PublishingService(root, sock).close()
+    path = root.parent / f".{root.name}-service" / "imports.sqlite3"
+    script = """
+import os, signal, sqlite3, sys
+from pathlib import Path
+path=Path(sys.argv[1]); db=sqlite3.connect(path, isolation_level=None)
+db.execute('PRAGMA journal_mode=WAL'); db.execute('PRAGMA wal_autocheckpoint=0')
+db.execute('DROP TABLE rpc_receipts')
+if sys.argv[2]=='True': path.rename(path.parent/'retained-main')
+os.kill(os.getpid(), signal.SIGKILL)
+"""
+    result = subprocess.run([sys.executable, "-c", script, str(path), str(missing_main)])
+    assert result.returncode < 0
+    wal = Path(str(path) + "-wal")
+    assert wal.stat().st_size > 0
+    before = wal.read_bytes()
+    main_before = path.read_bytes() if path.exists() else None
+    publisher_before = (root / "state.sqlite3").read_bytes()
+    for _ in range(2):
+        with pytest.raises(PublishingError):
+            PublishingService(root, sock)
+        assert wal.read_bytes() == before
+        assert (path.read_bytes() if path.exists() else None) == main_before
+        assert (root / "state.sqlite3").read_bytes() == publisher_before
+
+
+def test_startup_original_service_profile_retains_identity_and_legacy_json(inert_authority_service):
+    import sqlite3
+    root, sock = inert_authority_service
+    owner = PublishingService(root, sock)
+    identity = owner.service_id
+    legacy = {"id": "original", "sessionId": "session", "requestId": "original", "action": "import", "siteId": "site", "state": "unknown", "error": {"code": "unknown_outcome", "message": "retained"}}
+    owner._save(legacy, "original-fingerprint")
+    owner.close()
+    owner = PublishingService(root, sock)
+    assert owner.service_id == identity
+    assert owner._base_receipt("session", "original") == legacy
+    assert "rpcPayloadDigest" not in owner._base_receipt("session", "original")
+    owner.close()
+
+
+def test_startup_retains_original_unknown_import_admission(inert_authority_service, monkeypatch):
+    from amplifier_publishing import service as module
+    root, sock = inert_authority_service
+    owner = PublishingService(root, sock)
+    request = {"method": "import", "sessionId": "session", "requestId": "original", "siteId": "site", "manifestDigest": "original"}
+    legacy = {"id": "original", "sessionId": "session", "requestId": "original", "action": "import", "siteId": "site", "state": "unknown", "error": {"code": "unknown_outcome", "message": "retained"}}
+    owner._save(legacy, digest(request))
+    owner.close()
+    effects = []
+    def admission(_request):
+        effects.append("inert")
+        raise RuntimeError("must not readmit")
+    monkeypatch.setattr(module, "_manifest", admission)
+    owner = PublishingService(root, sock)
+    with pytest.raises(PublishingError) as uncertain:
+        owner._import(request)
+    assert uncertain.value.code == "unknown_outcome" and effects == []
+    owner.close()
+    import sqlite3
+    path = root.parent / f".{root.name}-service" / "imports.sqlite3"
+    with sqlite3.connect(path) as db:
+        db.execute("DROP TABLE imports")
+    with pytest.raises(PublishingError) as refused:
+        PublishingService(root, sock)
+    assert refused.value.code == "ledger_unconfirmed" and effects == []
