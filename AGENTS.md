@@ -1,5 +1,7 @@
 # Library boundary
 
+This codebase is yours: what it's for and how it's built are your call, and you'll keep building on it.
+
 Read [local vision](docs/VISION.md) and [publishing contract v1](contracts/publishing.v1.md)
 with their linked family direction and acceptance limits before changing behavior.
 Reference upstream AHP/ACP and the owning API definitions; do not duplicate them
