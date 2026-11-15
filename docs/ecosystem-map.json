@@ -1,0 +1,99 @@
+{
+  "audience": "Developers adding preview and deployment controls",
+  "citations": [
+    {
+      "path": "README.md",
+      "ref": "9868615ef9b59a7a1fb44ceac1505d1ce1a65d2e",
+      "sha256": "4da03a4e7af968cca62fb70e6fa0ed0a6607d0839535456d418673129552f732",
+      "url": "https://github.com/microsoft/amplifier-publishing/blob/9868615ef9b59a7a1fb44ceac1505d1ce1a65d2e/README.md"
+    },
+    {
+      "path": "contracts/publishing.v1.md",
+      "ref": "9868615ef9b59a7a1fb44ceac1505d1ce1a65d2e",
+      "sha256": "5582f30942ce91684ef56789fb97498be57051a6a9bc929cf7d564b3e63febcb",
+      "url": "https://github.com/microsoft/amplifier-publishing/blob/9868615ef9b59a7a1fb44ceac1505d1ce1a65d2e/contracts/publishing.v1.md"
+    }
+  ],
+  "display_name": "Amplifier Publishing",
+  "edges": [
+    {
+      "from": "consumer",
+      "relation": "uses",
+      "to": "self"
+    },
+    {
+      "from": "self",
+      "relation": "contains",
+      "to": "capture"
+    },
+    {
+      "from": "self",
+      "relation": "contains",
+      "to": "preview"
+    },
+    {
+      "from": "self",
+      "relation": "contains",
+      "to": "records"
+    },
+    {
+      "from": "self",
+      "relation": "uses",
+      "to": "target"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "self",
+      "kind": "self",
+      "label": "Amplifier Publishing",
+      "repository": "microsoft/amplifier-publishing"
+    },
+    {
+      "id": "consumer",
+      "kind": "external",
+      "label": "Embedding application"
+    },
+    {
+      "id": "capture",
+      "kind": "internal",
+      "label": "Static snapshot capture"
+    },
+    {
+      "id": "preview",
+      "kind": "internal",
+      "label": "Local preview listeners"
+    },
+    {
+      "id": "records",
+      "kind": "internal",
+      "label": "Reviews and deployment records"
+    },
+    {
+      "id": "target",
+      "kind": "external",
+      "label": "Configured publishing target"
+    }
+  ],
+  "notes": [
+    "The library supports tool/experience integration but is not itself a standalone Experience or model/runtime.",
+    "Capture accepts prebuilt files; it does not run builds.",
+    "It does not supply public URL provisioning, DNS, cloud accounts, remote authentication or TLS."
+  ],
+  "page_kind": "publishing library",
+  "purpose": "Preview and publish already-built sites with immutable captures and reviewed rollback.",
+  "ref": "9868615ef9b59a7a1fb44ceac1505d1ce1a65d2e",
+  "repository": "microsoft/amplifier-publishing",
+  "roles": [],
+  "start_cta": {
+    "basis": "Existing approved README route; target release assets/availability not freshly audited in this plan.",
+    "label": "Integrate publishing",
+    "url": "https://github.com/microsoft/amplifier-publishing#get-started"
+  },
+  "summary": "A reusable library for immutable site snapshots, local previews and reviewed publishing.",
+  "supports_roles": [
+    "Tool",
+    "Experience"
+  ],
+  "visibility": "private"
+}
