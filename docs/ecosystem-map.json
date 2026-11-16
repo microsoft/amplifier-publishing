@@ -2,16 +2,18 @@
   "audience": "Developers adding preview and deployment controls",
   "citations": [
     {
+      "git_blob": "00eb394538360b08b8b87581d16b311122d2a4d1",
       "path": "README.md",
-      "ref": "9868615ef9b59a7a1fb44ceac1505d1ce1a65d2e",
-      "sha256": "4da03a4e7af968cca62fb70e6fa0ed0a6607d0839535456d418673129552f732",
-      "url": "https://github.com/microsoft/amplifier-publishing/blob/9868615ef9b59a7a1fb44ceac1505d1ce1a65d2e/README.md"
+      "ref": "168d56f195108626fdeeee55accfdc92a3b286aa",
+      "sha256": "b80b287d2ea9c2798c1d7fe16f48babf65ccea60937fae7f5f839937afa66561",
+      "url": "https://github.com/microsoft/amplifier-publishing/blob/168d56f195108626fdeeee55accfdc92a3b286aa/README.md"
     },
     {
+      "git_blob": "57f3cb3f8f58d14e91c625d4e99721b8a00e210c",
       "path": "contracts/publishing.v1.md",
-      "ref": "9868615ef9b59a7a1fb44ceac1505d1ce1a65d2e",
+      "ref": "168d56f195108626fdeeee55accfdc92a3b286aa",
       "sha256": "5582f30942ce91684ef56789fb97498be57051a6a9bc929cf7d564b3e63febcb",
-      "url": "https://github.com/microsoft/amplifier-publishing/blob/9868615ef9b59a7a1fb44ceac1505d1ce1a65d2e/contracts/publishing.v1.md"
+      "url": "https://github.com/microsoft/amplifier-publishing/blob/168d56f195108626fdeeee55accfdc92a3b286aa/contracts/publishing.v1.md"
     }
   ],
   "display_name": "Amplifier Publishing",
@@ -82,7 +84,7 @@
   ],
   "page_kind": "publishing library",
   "purpose": "Preview and publish already-built sites with immutable captures and reviewed rollback.",
-  "ref": "9868615ef9b59a7a1fb44ceac1505d1ce1a65d2e",
+  "ref": "168d56f195108626fdeeee55accfdc92a3b286aa",
   "repository": "microsoft/amplifier-publishing",
   "roles": [],
   "start_cta": {
@@ -95,5 +97,5 @@
     "Tool",
     "Experience"
   ],
-  "visibility": "private"
+  "visibility": "public"
 }
