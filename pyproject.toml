@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "amplifier-publishing"
-version = "0.1.1"
+version = "0.1.2"
 description = "Reusable Amplifier publishing library"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -22,3 +22,8 @@ dev = ["pytest>=8"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+# Keep the existing standalone source/docs/tests; publication automation is bound
+# by the receipt's full root tree and is not part of the installed library.
+[tool.hatch.build.targets.sdist]
+exclude = ["/.github/**", "/scripts/release.py", "/tests_release/**"]
