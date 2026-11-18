@@ -80,6 +80,33 @@ Supports: Tool, Experience.
 
 <!-- ecosystem-map:end -->
 
+## Immutable package delivery
+
+The package workflow builds an exact reviewed revision, verifies its wheel and
+source archive against Git, and checks the installed package outside the checkout.
+Its focused artifact check covers the public read/retention composition and core
+local publication, backup and owner boundaries. The full contract runner remains
+`scripts/qualify-installed.sh`; package acceptance is not live-host acceptance.
+
+For an accepted commit, the normal manual workflow may publish four original
+assets under `publishing-v<version>`: the wheel, source archive,
+`publishing-source.json` and `SHA256SUMS`. The receipt binds the full repository
+revision/tree and exact package inputs, including the `src/amplifier_publishing`
+to `amplifier_publishing` installed mapping. Source acceptance, package publication
+and a consumer's explicit selection are separate steps. Historical qualification
+and Unified-produced artifacts retain their original source and bytes; 0.1.2
+identifies the new compatibility package, not the earlier sealed 0.1.1 wheel.
+
+Publication never moves an existing tag or overwrites an asset. If a command loses
+its reply, inspect that exact tag/release ID and original bytes before any manual
+continuation. The helper reconciles only matching immutable assets; do not rebuild
+a different package under an existing tag. This GitHub package workflow is delivery
+automation, separate from the Publisher domain API and its effect receipts.
+
+Do not co-install this distribution with Unified while Unified owns the
+`amplifier_publishing` import. Unified must select and assemble a verified package
+through its own delivery workflow; publishing here does not alter that selection.
+
 ## Contributing
 
 Most contributions require you to agree to a
