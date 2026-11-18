@@ -1,8 +1,8 @@
 # Publishing contract — v1
 
-Status: documentation consolidation for repository review, 2026-10-03.
-Scope: existing `amplifier-publishing` 0.1.1 public behavior; no new runtime,
-transport or schema obligations are proposed. Parent: [local vision](../docs/VISION.md).
+Status: compatibility reconciliation for repository review, 2026-11-18.
+Scope: preserve the public API and integrate Unified's existing opt-in local body
+retention and recovery mechanisms; no default expiry or new RPC mutations. Parent: [local vision](../docs/VISION.md).
 Inherited approval belongs to the linked family direction, not to this document
 merely because it exists. A changed promise requires an explicit consumer impact
 and review; unqualified acceptance does not weaken the promise.
@@ -31,6 +31,32 @@ imports native runtimes nor creates a second native history authority.
 | PUB4 | Page scoped metadata before loading detail; exact selected reads preserve full evidence. Complete exports load only their selected session and retain insertion order. | A page or selected export decodes unrelated historical records, or drops exact receipt proof. | [Page tests](../tests/test_publishing_pages.py): `test_pages_are_indexed_scoped_and_keep_selected_evidence`, `test_large_cold_history_does_not_enter_selected_reads`, `test_large_service_receipt_history_stays_bounded_and_prefers_rpc`. |
 | PUB5 | One process owns a Publisher store; local listener liveness is explicit. Stop/remove retain content/reviews/receipts; snapshot and restore never resume historical listeners or erase source. | Another service recovers a live store; closing the old owner unlinks a replacement endpoint; restore repeats publication. | [Library tests](../tests/test_publishing_library.py): `test_root_has_one_process_owner`, `test_consistent_backup_restores_audit_and_explicit_resume_only`; [remote tests](../tests/test_publishing_remote.py): `test_service_owner_exclusion_and_replaced_socket_are_preserved`. |
 | PUB6 | Exposure/limits are truthful: private numeric binds, owner-only admin socket, loopback previews and bounded transfers; verified bytes and client reachability are distinct outcomes. | A remote loopback URL is claimed reachable, public bind is accepted, or malformed/lost replies become confirmed success. | [Remote tests](../tests/test_publishing_remote.py): `test_private_service_configuration_guards`, `test_remote_loopback_never_claims_client_reachability`, `test_actual_subprocess_output_overflow_is_bounded_and_unknown`, `test_url_verification_fetches_exact_bytes_over_actual_http`. |
+
+## Opt-in local body compatibility
+
+PUB7: A caller may explicitly give a new capture a prospective retention policy,
+pin an available body, and retire one eligible owned body under current authority.
+Omitted policy and legacy records remain durable. Stop/remove never delete bodies.
+Immutable identity, reviews and historical receipts remain intact after expiry;
+only a new deliberate capture can materialize the same bytes as a new generation.
+An unknown cleanup outcome stays historical. Recovery may finish proven detached
+private cleanup, but an untouched original requires fresh admission under current
+policy. Reader settlement and owner close protect in-flight bodies.
+
+The [API and retention reference](../src/amplifier_publishing/README.md#prospective-body-retention-and-pins)
+retains exact policy, hold, cancellation, backup and old-reader limits. These are
+Python-only mechanisms: existing v1 service mutations are unchanged. Matching
+readers accept pin/retire receipts; older readers are not promised to accept
+newly opted-in stores. No auto replay, scheduler, new app policy or public hosting
+is introduced. `receipt(request_id, session_id)` keeps its public positional order;
+consumers of the former Unified order must use named arguments.
+
+Inherited checks live in [retention tests](../tests/test_publishing_retention.py)
+and [retirement tests](../tests/test_publishing_retirement.py). New
+[composition checks](../tests/test_publishing_compatibility.py) join those mechanisms
+with passive public reads, scoped pages, exact service receipts and expired backup
+adoption. Existing PUB1–6 tests remain required; retained historical qualification
+below does not qualify this successor.
 
 ## Consumer obligations
 
