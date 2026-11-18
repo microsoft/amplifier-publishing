@@ -65,7 +65,7 @@ def test_service_pages_and_exact_receipt_survive_expired_backup(clock, source):
             assert client.validate_result('receipt', exact) == receipt
             page = client.request({'method': 'page', 'sessionId': 'session-one', 'collection': 'releases'})
             assert page['items'][0]['retention']['availability'] == 'expired'
-            assert page['items'][0]['fileCount'] == 1 and 'files' not in page['items'][0]
+            assert page['items'][0]['fileCount'] == len(release['files']) and 'files' not in page['items'][0]
             selected = client.request({'method': 'release', 'sessionId': 'session-one', 'releaseId': release['id']})
             assert selected['files'] == release['files']
             assert selected['retention']['availability'] == 'expired'
