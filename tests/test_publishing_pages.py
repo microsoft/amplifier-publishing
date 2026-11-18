@@ -25,7 +25,9 @@ def test_pages_are_indexed_scoped_and_keep_selected_evidence(tmp_path):
         with pytest.raises(PublishingError):p.page('two',collection='releases',cursor=p.page('one',collection='releases',limit=1)['nextCursor'])
         with pytest.raises(PublishingError):p.page('one',limit=101)
         plan=p._db.execute("EXPLAIN QUERY PLAN SELECT id,body FROM records WHERE kind=? AND json_extract(body,'$.sessionId')=? AND id>? ORDER BY id LIMIT ?",('release','one','',5)).fetchall()
-        assert any('records_scope' in row[-1] for row in plan)
+        assert any('SEARCH records USING INDEX ' in row[-1] and 'id>?' in row[-1]
+                   and any(name in row[-1] for name in ('records_scope', 'publishing_resources'))
+                   for row in plan)
         p.build(source,site_id='site',session_id='one',request_id='new-after-page')
         p.review(releases[0]['id'],session_id='one',request_id='review',note='Fixture reviewed')
         p.preview(releases[0]['id'],session_id='one',request_id='preview')

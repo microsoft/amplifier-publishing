@@ -23,7 +23,9 @@ This repository owns immutable snapshots, local listener lifecycle, private
 service identity, bounded import/export and the explicit transport receipt
 contract. The consumer owns build execution, source authorization, authenticated
 session scope, workspace/artifact references, reviewed legacy product migration,
-cleanup policy and UI. The service supervisor owns its actual process lifetime;
+cleanup policy and UI. The library can enforce an explicitly supplied prospective
+body policy and finish proven detached cleanup; it never infers expiry for legacy
+content or activates an application cleanup policy. The service supervisor owns its actual process lifetime;
 the distribution owns composition, package activation and deployment acceptance.
 
 Project compilation, arbitrary server execution, account provisioning, SSH key

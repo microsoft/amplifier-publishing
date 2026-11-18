@@ -11,5 +11,35 @@
     "tests/test_publishing_remote.py": "cf839caa5c0738df4f2e03827ef825a5e0bb333f3c5157b85c9e2c760665f2b7"
   },
   "testSelection": "complete standalone files",
-  "boundary": "Extracted library; application integration cases remain in distribution acceptance, not replaced with skips."
+  "boundary": "Extracted library; application integration cases remain in distribution acceptance, not replaced with skips.",
+  "compatibilitySources": [
+    {
+      "repository": "https://github.com/microsoft/amplifier-unified",
+      "revision": "a1e4e04c7959d10740364f8039a7ce082a792242",
+      "path": "components/publishing",
+      "scope": "Existing opt-in local body retention, pinning, reader settlement and retirement/recovery mechanisms plus direct tests; public paging, ledger preflight and receipt positional API retained.",
+      "files": {
+        "src/amplifier_publishing/retention.py": {
+          "upstreamPath": "components/publishing/amplifier_publishing/retention.py",
+          "sha256": "e0dd39fa84724cf9b6d5066da17ef1b4998bb700fb604312ba72d37aaede207d",
+          "adaptation": "byte-identical"
+        },
+        "src/amplifier_publishing/retirement.py": {
+          "upstreamPath": "components/publishing/amplifier_publishing/retirement.py",
+          "sha256": "7e48283e71274211cd8873e2c31257f76c22de01bf0e0d51dbfa034ec1aa3a4b",
+          "adaptation": "byte-identical"
+        },
+        "tests/test_publishing_retention.py": {
+          "upstreamPath": "components/publishing/tests/test_publishing_retention.py",
+          "sha256": "4ee62d720da373eb7082063425973f24894f4b34a2e473fd68450f591c3c5ca6",
+          "adaptation": "byte-identical"
+        },
+        "tests/test_publishing_retirement.py": {
+          "upstreamPath": "components/publishing/tests/test_publishing_retirement.py",
+          "sha256": "164f1babcdcf73f768d142f795ae47510f86ca70b96196df646bf3ddc9df9c26",
+          "adaptation": "receipt calls use explicit keyword arguments"
+        }
+      }
+    }
+  ]
 }
